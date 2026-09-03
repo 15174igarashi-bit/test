@@ -34,6 +34,9 @@
 .PARAMETER Force
     確認プロンプトを出さずに上書きする。
 
+.PARAMETER SkipDetailCheck
+    明細シート「商品ごと」からの再集計による照合を省く（数秒速くなる）。
+
 .EXAMPLE
     .\New-YunyuFurikaeCsv.ps1 -DryRun
     今月分を試算して、書き込まずに結果だけ見る
@@ -49,7 +52,8 @@ param(
     [string]$SourceFile,
     [string]$DestinationFile,
     [switch]$DryRun,
-    [switch]$Force
+    [switch]$Force,
+    [switch]$SkipDetailCheck
 )
 
 Set-StrictMode -Version Latest
@@ -249,6 +253,69 @@ if ($zeroRows.Count -gt 0) {
     Write-Warning "金額が 0 以下の行が $($zeroRows.Count) 件あります。"
     $zeroRows | ForEach-Object {
         Write-Host ("      行{0} 医院{1}({2}) 科目{3} → {4}" -f $_.Row, $_.ClinicId, $_.Clinic, $_.AccountId, $_.Amount)
+    }
+}
+
+# 明細シート「商品ごと」から集計し直して、新TWE の貼り直し漏れを検知する
+if (-not $SkipDetailCheck) {
+    Write-Host ''
+    Write-Host "    明細シート「$($src.DetailSheetName)」との照合" -NoNewline
+    try {
+        $detailRows = Import-XlsxSheet -Path $SourceFile -SheetName $src.DetailSheetName
+        Write-Host ("  （{0} 行を再集計）" -f $detailRows.Count) -ForegroundColor DarkGray
+
+        $detailSum = @{}
+        foreach ($row in $detailRows) {
+            if ($row['_row'] -lt $src.DetailFirstDataRow) { continue }
+
+            $corp = Get-CellValue -Row $row -Column $src.DetailColumnCorp
+            if ($null -eq $corp -or "$corp" -ne $Corporation) { continue }   # 総計行もここで落ちる
+
+            $cid  = Get-CellValue -Row $row -Column $src.DetailColumnClinicId
+            $acct = Get-CellValue -Row $row -Column $src.DetailColumnAccountId
+            $amt  = Get-CellValue -Row $row -Column $src.DetailColumnSubtotal
+            if ($null -eq $cid -or $null -eq $acct -or $null -eq $amt) { continue }
+
+            $key = '{0}/{1}' -f [int]$cid, [int]$acct
+            if (-not $detailSum.ContainsKey($key)) { $detailSum[$key] = [double]0 }
+            $detailSum[$key] += [double]$amt
+        }
+
+        $detailNg = New-Object Collections.Generic.List[string]
+
+        foreach ($r in $records) {
+            $key = '{0}/{1}' -f $r.ClinicId, $r.AccountId
+            if (-not $detailSum.ContainsKey($key)) {
+                $detailNg.Add(("医院{0} 科目{1} : 新TWE にあるが明細に無い" -f $r.ClinicId, $r.AccountId))
+                continue
+            }
+            $diff = [Math]::Abs($detailSum[$key] - $r.AmountRaw)
+            if ($diff -ge 0.005) {
+                $detailNg.Add(("医院{0} 科目{1} : 新TWE {2:N2} / 明細 {3:N2}（差 {4:N2}）" -f `
+                    $r.ClinicId, $r.AccountId, $r.AmountRaw, $detailSum[$key], ($r.AmountRaw - $detailSum[$key])))
+            }
+            $detailSum.Remove($key)
+        }
+
+        foreach ($key in $detailSum.Keys) {
+            $detailNg.Add(("{0} : 明細にあるが新TWE に無い（{1:N2}）" -f $key, $detailSum[$key]))
+        }
+
+        if ($detailNg.Count -eq 0) {
+            Write-Host "      全 $($records.Count) 行が明細の再集計と一致  OK" -ForegroundColor Gray
+        }
+        else {
+            Write-Warning @"
+新TWE の値が、明細シートを集計し直した結果と一致しません。
+  新TWE への貼り直しが済んでいない可能性があります。① を確認してください。
+"@
+            $detailNg | Select-Object -First 15 | ForEach-Object { Write-Host "      $_" -ForegroundColor Yellow }
+            if ($detailNg.Count -gt 15) { Write-Host "      … 他 $($detailNg.Count - 15) 件" -ForegroundColor Yellow }
+        }
+    }
+    catch {
+        Write-Host ''
+        Write-Warning "明細シートとの照合はできませんでした: $($_.Exception.Message)"
     }
 }
 

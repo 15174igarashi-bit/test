@@ -63,6 +63,18 @@ $KeiriConfig = @{
         # F列 小計 = ROUNDDOWN(E,0)。F の計算結果に依存せず E から作り直し、
         # F にキャッシュ値があれば突合して食い違いを警告する。
         ColumnSubtotal  = 'F'
+
+        # 明細シート。新TWE の E 列は「商品ごと」を (医院ID, 勘定科目ID) で
+        # 集計した値を貼り付けたもの（数式ではない）。貼り直し漏れを検知する
+        # ため、ここから集計し直して突き合わせる。
+        DetailSheetName       = '商品ごと'
+        DetailFirstDataRow    = 2
+        DetailColumnCorp      = 'A'
+        DetailColumnClinic    = 'B'
+        DetailColumnClinicId  = 'C'
+        DetailColumnAccountId = 'D'
+        DetailColumnSubtotal  = 'G'
+        DetailTotalLabel      = '合計'   # A列がこれの行は総計行なので除外する
     }
 
     # ---- ② 出力先：輸入振替_<法人>流し込み用CSV.csv ----

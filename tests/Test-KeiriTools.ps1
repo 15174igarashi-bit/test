@@ -163,9 +163,12 @@ try {
         Copy-Item -LiteralPath $Workbook -Destination (Join-Path $sourceDir '☆入力用輸入商品2026年8月各院経費.xlsm')
 
         $outFile = Join-Path $destDir '輸入振替_樹慶会流し込み用CSV.csv'
-        & (Join-Path $scriptsDir 'New-YunyuFurikaeCsv.ps1') -Month 202609 -Force *> $null
+        $log = & (Join-Path $scriptsDir 'New-YunyuFurikaeCsv.ps1') -Month 202609 -Force *>&1 |
+               ForEach-Object { "$_" } | Out-String
 
         Assert-That '② が作られる' (Test-Path -LiteralPath $outFile -PathType Leaf)
+        Assert-That '明細シートから再集計して照合している' `
+            ($log -match '明細の再集計と一致') "log=$($log.Length) 文字"
 
         $bytes = [IO.File]::ReadAllBytes($outFile)
         $text  = (Get-Cp932Encoding).GetString($bytes)
