@@ -1,0 +1,4 @@
+tests/fixtures/*.xlsm
+tests/fixtures/*.xlsx
+tests/fixtures/*.csv
+_backup/

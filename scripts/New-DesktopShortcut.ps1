@@ -20,8 +20,11 @@ $root    = Split-Path -Parent $PSScriptRoot
 $desktop = [Environment]::GetFolderPath('Desktop')
 
 $links = @(
-    @{ Name = '今月の経理フォルダを開く.lnk';   Target = (Join-Path $root '1_今月のフォルダを開く.bat') }
-    @{ Name = '今月の入力用ブックを開く.lnk';   Target = (Join-Path $root '2_今月の入力用ブックを開く.bat') }
+    # WindowStyle 7 = 最小化（黒い画面を出さない）、1 = 通常表示（結果を読ませる）
+    @{ Name = '今月の経理フォルダを開く.lnk';      Target = '1_今月のフォルダを開く.bat';               Window = 7 }
+    @{ Name = '今月の入力用ブックを開く.lnk';      Target = '2_今月の入力用ブックを開く.bat';           Window = 7 }
+    @{ Name = '輸入振替CSVを試算する.lnk';         Target = '4_CSVを試算する（書き込まない）.bat';      Window = 1 }
+    @{ Name = '輸入振替CSVを作成して更新する.lnk'; Target = '5_CSVを作成して更新する.bat';              Window = 1 }
 )
 
 if ($Remove) {
@@ -38,16 +41,17 @@ if ($Remove) {
 $shell = New-Object -ComObject WScript.Shell
 
 foreach ($link in $links) {
-    if (-not (Test-Path -LiteralPath $link.Target -PathType Leaf)) {
-        Write-Warning "元ファイルが見つかりません: $($link.Target)"
+    $target = Join-Path $root $link.Target
+    if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
+        Write-Warning "元ファイルが見つかりません: $target"
         continue
     }
 
     $path = Join-Path $desktop $link.Name
     $sc = $shell.CreateShortcut($path)
-    $sc.TargetPath       = $link.Target
+    $sc.TargetPath       = $target
     $sc.WorkingDirectory = $root
-    $sc.WindowStyle      = 7          # 最小化で起動（黒い画面を出さない）
+    $sc.WindowStyle      = $link.Window
     $sc.IconLocation     = 'shell32.dll,3'
     $sc.Description      = '横浜経理部 法人間処理データ（ｺﾋﾟｰ）へのショートカット'
     $sc.Save()
