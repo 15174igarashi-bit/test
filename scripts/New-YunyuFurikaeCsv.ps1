@@ -382,18 +382,34 @@ if ([string]::IsNullOrWhiteSpace($DestinationFile)) {
     $DestinationFile = Join-Path $destDir.Resolved $wantedName
 
     if (-not (Test-Path -LiteralPath $DestinationFile -PathType Leaf)) {
+        # 「流し込み用CSV」「流し込みCSV」のような表記ゆれを拾う
         $candidates = @(
             Get-ChildItem -LiteralPath $destDir.Resolved -File -Filter ($dest.FileSearchPattern -f $Corporation) -ErrorAction SilentlyContinue |
-                Where-Object { $_.Name -notlike '~$*' } |
+                Where-Object { $_.Name -notlike '~$*' -and $_.Extension -eq '.csv' } |
                 Sort-Object LastWriteTime -Descending
         )
-        $csvCandidate = $candidates | Where-Object { $_.Extension -eq '.csv' } | Select-Object -First 1
-        if ($csvCandidate) {
-            $DestinationFile = $csvCandidate.FullName
-            Write-Warning "「$wantedName」が無かったので『$($csvCandidate.Name)』に書き込みます。"
+
+        if ($candidates.Count -eq 1) {
+            $DestinationFile = $candidates[0].FullName
+            Write-Warning "「$wantedName」は無く、『$($candidates[0].Name)』が見つかったので、こちらに書き込みます。"
         }
-        elseif ($candidates.Count -gt 0) {
-            Write-Warning "『$($candidates[0].Name)』が見つかりましたが CSV ではないため、新しく「$wantedName」を作成します。"
+        elseif ($candidates.Count -gt 1) {
+            # 上書き先を勝手に選ばない。人に決めてもらう。
+            Write-Host ''
+            Write-Host "  上書き先の候補が $($candidates.Count) 件あり、どれか判断できませんでした。" -ForegroundColor Red
+            Write-Host "  フォルダ: $($destDir.Resolved)" -ForegroundColor DarkGray
+            Write-Host ''
+            foreach ($c in $candidates) {
+                Write-Host ("    {0}   （更新 {1:yyyy/MM/dd HH:mm}）" -f $c.Name, $c.LastWriteTime)
+            }
+            Write-Host ''
+            Write-Host '  どれに書き込むかを指定して実行してください:' -ForegroundColor Cyan
+            Write-Host ("    powershell -File scripts\New-YunyuFurikaeCsv.ps1 -DestinationFile ""{0}""" -f $candidates[0].FullName) -ForegroundColor DarkGray
+            Write-Host ''
+            Write-Host '  （毎月これで迷うようなら、使わないファイルの名前を変えるか、' -ForegroundColor DarkGray
+            Write-Host '    scripts\Common.ps1 の FileSearchPattern を絞ってください）' -ForegroundColor DarkGray
+            Write-Host ''
+            exit 1
         }
         else {
             Write-Warning "「$wantedName」が無いので、新しく作成します。"

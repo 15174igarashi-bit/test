@@ -89,8 +89,11 @@ $KeiriConfig = @{
             '法人間_個別流し込みCSV'
             '輸入振替'
         )
+        # 新規作成するときの名前
         FileNameFormat      = '輸入振替_{0}流し込み用CSV.csv'
-        FileSearchPattern   = '輸入振替_{0}流し込み用CSV*'
+        # 既存ファイルを探すときの緩いパターン。「流し込み用CSV」「流し込みCSV」
+        # のような表記のゆれで空振りしないようにする。
+        FileSearchPattern   = '輸入振替*{0}*CSV*'
         BackupFolderName    = '_backup'
 
         # 勘定奉行の取込仕様にあわせた固定値
